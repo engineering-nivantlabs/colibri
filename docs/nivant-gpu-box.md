@@ -55,7 +55,36 @@ up 88 redundant RAM copies. However, 754 disk loads and 58 seconds for generatio
 made this unsuitable as a performance recommendation (0.28 tokens/sec reported).
 The broader checks were compiling concurrently, so this is not an isolated
 benchmark. The default now uses RAM-budget sizing and a smaller host pool;
-see the accompanying validation report for subsequent measurements.
+the subsequent measurements below document this profile.
+
+## Subsequent validation (2026-11-05)
+
+Same 19-token prompt, 16 generated tokens, 12 CPU threads, context 2048:
+
+| Mode | Reported speed | TTFT | Peak host RSS |
+| --- | ---: | ---: | ---: |
+| Vulkan, RAM auto sizing, host pool 2 GiB | 1.43 tok/s | 4.145 s | 3.26 GB |
+| CPU, RAM auto sizing | 2.53 tok/s | 3.930 s | 7.26 GB |
+
+Both runs auto-sized the RAM cache rather than fixing all residency. These are
+smoke measurements, not controlled throughput comparisons. The Vulkan run had
+14.58 GiB available to its expert tier, versus 8.51 GiB in the first run because
+other workloads' memory use changed. The earlier and later numbers cannot
+isolate the effect of the launcher changes. Compilation overlapped portions
+of validation. CPU and GPU continuations differed in their final words; no
+token-exact equivalence or model-quality comparison is claimed.
+
+The later Vulkan run served 94.6% of routed expert invocations on the device,
+used a 1.98 GiB host pool, and read 19 cold experts from disk. CPU execution is
+the faster observed choice for this short prompt; Vulkan reduces host-memory
+use and offers additional model capacity. More capacity does not imply speed.
+
+Passed: native Vulkan build, GGUF header/tensor/tokenizer compatibility check,
+three launcher tests, upstream `test_qwen36_cache_route`, `test_qwen36_ctx`,
+`test_qwen36_dense_batch`, and CPU/GPU text generation. Full `make check` was
+started but deliberately stopped during its lengthy C compilation; it did not
+complete and is not reported as passing. Existing upstream test compilation
+emitted unused-variable warnings; the Vulkan engine build completed cleanly.
 
 No kernel allocator changes or new managed-memory backend are claimed. Upstream
 already implements the GPU/RAM/disk scheduling this launcher configures.
